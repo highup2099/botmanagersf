@@ -1,33 +1,65 @@
 ```
-# Excel files
-*.xlsx
-
-# Browser profile data
-profiles/
-
-# Environment files
-.env
-.env.local
-*.env.*
-
-# Python cache
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Logs
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.*
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
+*.pot
+*.po
+*~
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
 
-# Temporary files
-*.tmp
-*.swp
+# Environment
+.env
+.env.local
+.env.*
+
+# Dependencies
+node_modules/
+julia-*/
+zig*/
+
+# Build artifacts
+dist/
+build/
+target/
+*.egg-info/
+.eggs/
 
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
+*.tmp
 
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+htmlcov/
 ```
