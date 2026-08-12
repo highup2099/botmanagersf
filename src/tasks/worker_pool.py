@@ -172,11 +172,24 @@ class WorkerPool:
             return False
     
     def _handle_track_review(self, task: TaskItem) -> bool:
-        """Handle track review task - placeholder for future implementation."""
-        # This would open browser, show track, wait for user review
-        # For now, just log that it's a placeholder
-        logger.info("Track review task executed (placeholder)", "TRACK_REVIEW", task.profile_id)
-        return True
+        """Handle track review task using browser workflow."""
+        from src.tasks.track_review import execute_track_review_task
+        
+        payload = task.payload
+        track_uri = payload.get('track_uri')
+        playlist_id = payload.get('playlist_id')
+        
+        if not track_uri:
+            logger.error("Missing track_uri in task payload", "TRACK_REVIEW_ERROR", task.profile_id)
+            return False
+        
+        # Execute track review workflow
+        return execute_track_review_task(
+            profile_id=task.profile_id,
+            track_uri=track_uri,
+            playlist_id=playlist_id,
+            headless=False  # Show browser for user interaction
+        )
     
     def _handle_playlist_add(self, task: TaskItem) -> bool:
         """Handle playlist add task."""

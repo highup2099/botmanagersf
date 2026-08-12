@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 from src.spotify.auth import SpotifyAuthService, get_spotify_auth, SpotifyAuthError
 from src.spotify.client import SpotifyClient, SpotifyAPIError
+from src.spotify.oauth_callback import start_oauth_listener, stop_oauth_listener, wait_for_oauth_callback, get_oauth_callback_url
 from src.logging_module.app_logger import get_logger
 
 
@@ -63,6 +64,7 @@ class SpotifyService:
         self.auth_service: Optional[SpotifyAuthService] = get_spotify_auth()
         self.token_storage = TokenStorage()
         self._clients: Dict[int, SpotifyClient] = {}  # profile_id -> client
+        self._pending_states: Dict[str, Dict] = {}  # state -> {profile_id, started_at}
     
     def is_configured(self) -> bool:
         """Check if Spotify OAuth is configured."""
@@ -89,6 +91,119 @@ class SpotifyService:
         logger.spotify_auth(f"OAuth initiated for profile {profile_id}", profile_id)
         
         return auth_url
+    
+    def initiate_auth_with_callback(self, profile_id: int, port: int = 8888) -> str:
+        """
+        Start OAuth flow with local callback server.
+        
+        Args:
+            profile_id: Profile ID to authenticate
+            port: Port for local callback server
+            
+        Returns:
+            Authorization URL to open in browser
+        """
+        if not self.auth_service:
+            raise SpotifyAuthError("Spotify not configured")
+        
+        # Start callback listener
+        if not start_oauth_listener(port):
+            raise SpotifyAuthError(f"Failed to start callback server on port {port}")
+        
+        import secrets
+        state = secrets.token_urlsafe(32)
+        
+        # Get actual callback URL
+        callback_url = get_oauth_callback_url()
+        
+        # Build authorization URL with correct redirect_uri
+        params = {
+            "client_id": self.auth_service.client_id,
+            "response_type": "code",
+            "redirect_uri": callback_url,
+            "scope": " ".join(self.auth_service.SCOPES),
+            "state": state,
+            "show_dialog": "false"
+        }
+        
+        query_string = "&".join(f"{k}={v}" for k, v in params.items())
+        auth_url = f"{self.auth_service.AUTH_URL}?{query_string}"
+        
+        logger.spotify_auth(f"OAuth initiated for profile {profile_id} with callback {callback_url}", profile_id)
+        
+        # Store state for later retrieval (simple in-memory for MVP)
+        self._pending_states[state] = {
+            'profile_id': profile_id,
+            'started_at': datetime.utcnow()
+        }
+        
+        return auth_url
+    
+    def complete_auth_with_callback(self, profile_id: int, timeout: float = 300.0) -> bool:
+        """
+        Complete OAuth flow by waiting for callback.
+        
+        Args:
+            profile_id: Profile ID being authenticated
+            timeout: Max time to wait for callback
+            
+        Returns:
+            True if successful
+        """
+        if not self.auth_service:
+            return False
+        
+        # Find pending state for this profile
+        state = None
+        for s, data in list(self._pending_states.items()):
+            if data['profile_id'] == profile_id:
+                state = s
+                break
+        
+        if not state:
+            logger.error("No pending OAuth state found", "SPOTIFY_AUTH_ERROR", profile_id)
+            return False
+        
+        try:
+            # Wait for callback
+            callback_data = wait_for_oauth_callback(state, timeout=timeout)
+            
+            if not callback_data:
+                logger.error("OAuth callback timeout", "SPOTIFY_AUTH_TIMEOUT", profile_id)
+                return False
+            
+            error = callback_data.get('error')
+            if error:
+                logger.error(f"OAuth error: {error}", "SPOTIFY_AUTH_ERROR", profile_id)
+                return False
+            
+            code = callback_data.get('code')
+            if not code:
+                logger.error("No authorization code in callback", "SPOTIFY_AUTH_ERROR", profile_id)
+                return False
+            
+            # Exchange code for token
+            token_data = self.auth_service.exchange_code_for_token(code, state)
+            
+            # Calculate absolute expiry time
+            expires_in = token_data.get("expires_in", 3600)
+            token_data["expires_at"] = datetime.utcnow() + timedelta(seconds=expires_in)
+            
+            # Store tokens
+            self.token_storage.store(profile_id, token_data)
+            
+            # Create client instance
+            self._clients[profile_id] = SpotifyClient(token_data["access_token"])
+            
+            logger.spotify_auth(f"OAuth completed for profile {profile_id}", profile_id)
+            return True
+            
+        except SpotifyAuthError as e:
+            logger.error(f"OAuth failed: {e}", "SPOTIFY_AUTH_FAILED", profile_id)
+            return False
+        finally:
+            # Clean up pending state
+            self._pending_states.pop(state, None)
     
     def complete_auth(self, profile_id: int, code: str, state: str) -> bool:
         """

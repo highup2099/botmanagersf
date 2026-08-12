@@ -1,65 +1,42 @@
 ```
-# Python
+# Database files
+*.db
+
+# Dependencies
+.venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.ENV.*
-.venv.bak/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-*.pot
-*.po
-*~
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
 
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
 
-# Dependencies
-node_modules/
-julia-*/
-zig*/
-
-# Build artifacts
-dist/
-build/
-target/
-*.egg-info/
-.eggs/
+# Logs
+*.log
 
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
 # Coverage
+.coverage
 coverage/
 htmlcov/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+
+# Build artifacts
+dist/
+build/
+target/
 ```
